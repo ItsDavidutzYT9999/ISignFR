@@ -1,22 +1,17 @@
-from flask import Flask, request, jsonify
+from flask import Flask, render_template
 import os
 import logging
 
 app = Flask(__name__)
 
-# Set logger level to WARNING to reduce noise but still show important logs
+# Dezactivează logging-ul Flask la nivel INFO (asta reduce mesajele din consolă)
 log = logging.getLogger('werkzeug')
-log.setLevel(logging.WARNING)
+log.setLevel(logging.ERROR)
 
 @app.route('/')
 def home():
-    return 'ISignFR server is running smoothly ✅', 200
-
-@app.route('/sign', methods=['POST'])
-def sign_ipa():
-    return jsonify({'message': 'Sign endpoint received your request!'}), 200
+    return render_template('index.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"Starting ISignFR server on port {port}...")
     app.run(host='0.0.0.0', port=5000, debug=False)
