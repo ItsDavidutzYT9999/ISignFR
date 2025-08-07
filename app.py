@@ -11,10 +11,9 @@ from flask import Flask, request, jsonify, send_file, abort
 
 logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB
-app.config['UPLOAD_FOLDER'] = '/tmp'
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB limit
 
-ZSIGN_PATH = './zsign'  # path to zsign executable
+ZSIGN_PATH = './zsign'  # calea către zsign
 
 if os.path.exists(ZSIGN_PATH):
     os.chmod(ZSIGN_PATH, 0o755)
@@ -26,7 +25,7 @@ def extract_bundle_and_name(ipa_path):
         payload = os.path.join(tmpdir, 'Payload')
         apps = [d for d in os.listdir(payload) if d.endswith('.app')]
         if not apps:
-            raise Exception("No .app folder found")
+            raise Exception("No .app folder found in Payload")
         app_path = os.path.join(payload, apps[0])
         plist_path = os.path.join(app_path, 'Info.plist')
         with open(plist_path, 'rb') as f:
@@ -68,17 +67,14 @@ def generate_manifest(bundle_id, app_name, ipa_url):
 </dict>
 </plist>"""
 
-def upload_to_gofile(file_path):
+def upload_to_transfersh(file_path):
+    filename = os.path.basename(file_path)
+    url = f'https://transfer.sh/{filename}'
     try:
-        size = os.path.getsize(file_path)
-        timeout = 300 if size > 100*1024*1024 else 120
         with open(file_path, 'rb') as f:
-            r = requests.post('https://store1.gofile.io/uploadFile', files={'file': f}, timeout=timeout)
+            r = requests.put(url, data=f)
         r.raise_for_status()
-        res = r.json()
-        if res.get('status') != 'ok':
-            return None, res.get('error', 'Upload error')
-        return res['data']['downloadPage'], None
+        return r.text.strip(), None
     except Exception as e:
         app.logger.error(f"Upload error: {e}")
         return None, str(e)
@@ -135,7 +131,7 @@ def sign_ipa():
         permanent_path = os.path.join('/tmp', signed_filename)
         shutil.copy2(output_path, permanent_path)
 
-        ipa_url, err = upload_to_gofile(output_path)
+        ipa_url, err = upload_to_transfersh(output_path)
         if err:
             return jsonify({'error': 'IPA upload failed', 'details': err}), 500
 
@@ -143,7 +139,7 @@ def sign_ipa():
         with open(manifest_path, 'w', encoding='utf-8') as f:
             f.write(manifest_content)
 
-        manifest_url, manifest_err = upload_to_gofile(manifest_path)
+        manifest_url, manifest_err = upload_to_transfersh(manifest_path)
         if manifest_err:
             return jsonify({'error': 'Manifest upload failed', 'details': manifest_err}), 500
 
